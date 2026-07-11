@@ -1,0 +1,21 @@
+app_label: django_accounts
+groups:
+  - name: customers-identity
+    title: "Customers & Identity"
+    models:
+      - Customer
+      - Address
+      - File
+      - AddressFile
+      - Group
+      - Channel
+      - Revoke
+
+  - name: wishlist-commerce
+    title: "Wishlist & Commerce"
+    models:
+      - Wishlist
+      - WishlistProduct
+      - ProductRepresentation
+      - APIAdminKey
+      - SocialLoginProviders
