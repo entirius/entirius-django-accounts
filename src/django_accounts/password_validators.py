@@ -51,8 +51,8 @@ class CapitalSymbolAndNumbersValidator:
 
     def get_help_text(self):
         return _(
-            "Your password must contain at least %(number_of_capitals)d capital letters , %(number_of_symbols) symbols and %(number_of_numbers) numbers"
-            % {"number_of_capitals": self.number_of_capitals, "number_of_symbols": self.number_of_symbols}
+            f"Your password must contain at least {self.number_of_capitals} capital letters , "
+            f"{self.number_of_symbols} symbols and {self.number_of_numbers} numbers"
         )
 
 
