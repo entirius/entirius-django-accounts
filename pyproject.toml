@@ -1,6 +1,6 @@
 [project]
 name = "entirius-django-accounts"
-version = "5.0.0"
+version = "5.0.1"
 description = "Accounts Django module for Volkanos"
 authors = [{ name = "Entirius" }]
 readme = "README.md"
