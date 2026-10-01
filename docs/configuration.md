@@ -70,7 +70,11 @@ The module also reads these settings independently:
 | `JWT_SECRET` | (long default) | Secret key for JWT signing |
 | `JWT_ALGORITHM` | `"HS256"` | JWT signing algorithm |
 
-## Authentication Backend
+## Required: Authentication Backend
+
+The v1 customer views (`@authenticate`) call `django.contrib.auth.authenticate(request)`, which only
+tries `AUTHENTICATION_BACKENDS`. Without `JWTAccessBackend` the Bearer token is never read and every
+customer endpoint (`customer/me/`, profile, addresses, wishlist, password change, logout) is 401.
 
 ```python
 AUTHENTICATION_BACKENDS = [

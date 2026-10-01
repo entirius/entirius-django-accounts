@@ -24,6 +24,16 @@ INSTALLED_APPS = [
 Two settings are required at import time: `PRIVATE_DIR` (private file storage root) and
 `MIGRATION_0023_MECHANISM` (wishlist restructuring mode; use `1` on fresh installations).
 
+Register the JWT backend, or every customer endpoint behind `@authenticate` (`customer/me/`,
+profile, addresses, wishlist, password change, logout) answers 401 even with a valid token:
+
+```python
+AUTHENTICATION_BACKENDS = [
+    "django_accounts.backends.JWTAccessBackend",
+    "django.contrib.auth.backends.ModelBackend",  # Django admin login
+]
+```
+
 Optional PIM integration (product-representation sync worker):
 
 ```shell

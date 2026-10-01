@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- `customer/tokens/` answers 403 `user_not_customer` instead of 500 when the login is valid but the
+  user has no Customer profile (e.g. a staff-only account).
+- Docs: `JWTAccessBackend` in `AUTHENTICATION_BACKENDS` is required for the customer endpoints.
+
 ## 5.0.1 — 2026-07-13
 
 - Fix broken format string in the password validator help text.

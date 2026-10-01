@@ -183,6 +183,8 @@ UserExtensionProxy                     -- proxy on User, adds is_customer proper
 ## Settings Reference
 
 Two settings raise `EnvironmentError` at import time if unset: `PRIVATE_DIR` and `MIGRATION_0023_MECHANISM`.
+`AUTHENTICATION_BACKENDS` must list `django_accounts.backends.JWTAccessBackend` before `ModelBackend`
+(nothing checks it at boot; see Gotchas).
 
 | Setting | Default | Description |
 |---------|---------|-------------|
@@ -253,6 +255,8 @@ make test
 ## Gotchas
 
 - `PRIVATE_DIR` and `MIGRATION_0023_MECHANISM` raise `EnvironmentError` at import if unset — set both before starting Django
+- v1 customer views use `@authenticate` → `django.contrib.auth.authenticate(request)`, which only tries `AUTHENTICATION_BACKENDS`. Without `JWTAccessBackend` registered the Bearer token is never read and every customer endpoint is 401
+- `customer/tokens/` for a valid login without a `Customer` (staff-only user) is 403 `user_not_customer`
 - `T9N_DEFAULT_LANG` defaults to `"pl"` not `"en"` — affects `ProductRepresentation.name` and `name_lang()` fallback
 - `Customer.email` is a `@property` querying allauth `EmailAddress` — always access via `customer.email.email`, not a plain field
 - `UserExtensionProxy` is a proxy model on Django's User — excluded from ERD, exposes only `is_customer` property
