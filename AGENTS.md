@@ -105,7 +105,9 @@ Function-based views (v1 style: marshmallow DTO validation). URL prefix configur
 
 **Auth mechanisms (v1):**
 - `@authenticate` + `@require_authentication` — simplejwt Bearer token
-- `@admin_view` — `APIAdminKey` header authentication (admin endpoints)
+- `@admin_view` — X-API-ADMIN-KEY authentication (admin endpoints) through `utils/api_keys.py` `key_is_valid`: with
+  `django_access` installed an access token of scope `accounts.erase` (`verify_api_key`, the `APIAdminKey` table is never
+  read), else the `APIAdminKey` row (soft dependency — never in `pyproject.toml`)
 - `@channel_view` — resolves `Channel` from URL `channel_idx` into `kwargs["channel"]`
 
 ### API v2 Admin (Read-Only)
@@ -221,7 +223,7 @@ Two settings raise `EnvironmentError` at import time if unset: `PRIVATE_DIR` and
 | `accounts-import-from-csv` | Import customer accounts from CSV file (`--file_path`, defaults to `IMPORT_DIR/accounts/accounts.csv`) |
 | `addresses-import-from-csv` | Import customer addresses from CSV file |
 | `fill-accounts-product-representation-from-pim` | Sync ProductRepresentation cache from PIM data (`--pim_shop_idx`; requires the `pim` extra) |
-| `generate-api-admin-key` | Generate SHA256 APIAdminKey for a channel and save to file (`channel_idx`, `--file_path`) |
+| `generate-api-admin-key` | Generate SHA256 APIAdminKey for a channel and save to file (`channel_idx`, `--file_path`); refuses when django-access is installed |
 | `module-accounts-export-to-magento` | Export accounts to Magento2 (empty command stub) |
 
 ## Dependencies

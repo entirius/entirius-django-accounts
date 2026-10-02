@@ -100,6 +100,9 @@ The key is printed to stdout and written to the file. Use the generated key in i
 
 **Default file path:** `{DATA_DIR}/tmp/accounts-api-admin-key/key`
 
+With `django_access` installed the command refuses: keys are access tokens there — issue one with
+`manage.py access_token create --scope accounts.erase --channel <idx> --application <name>`.
+
 **Arguments:**
 
 | Argument | Required | Description |

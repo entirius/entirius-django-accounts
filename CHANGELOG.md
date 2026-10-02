@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Keys verified by django-access when installed: the X-API-ADMIN-KEY erase route checks access tokens
+  through `verify_api_key` (scope `accounts.erase`), never the legacy table. Without django-access
+  nothing changes. `generate-api-admin-key` then refuses and names `access_token create`; the key admin
+  becomes read-only.
+- The key admin shows only the last four characters of a key.
+
 ## 5.0.1 — 2026-07-13
 
 - Fix broken format string in the password validator help text.
