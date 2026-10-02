@@ -12,6 +12,7 @@ from rest_framework_simplejwt.token_blacklist import models as blacklist_models
 
 from django_accounts import settings
 from django_accounts.models import Group, ProductRepresentation, Wishlist, WishlistProduct
+from django_accounts.utils.api_keys import access_installed, mask_key
 
 from .models import Address, AddressFile, APIAdminKey, Channel, Customer, File, Revoke, SocialLoginProviders
 
@@ -20,9 +21,23 @@ logger = logging.getLogger(__name__)
 
 @admin.register(APIAdminKey)
 class APIAdminKeyAdmin(admin.ModelAdmin):
+    """Keys show only their last four characters; with django_access installed they are read-only (tokens rule)."""
+
     model = APIAdminKey
-    list_display = ["channel", "key"]
+    list_display = ["channel", "masked_key"]
     list_filter = ("channel",)
+    exclude = ("key",)
+    readonly_fields = ("masked_key",)
+
+    @admin.display(description="key")
+    def masked_key(self, obj) -> str:
+        return mask_key(obj.key)
+
+    def has_add_permission(self, request) -> bool:
+        return not access_installed() and super().has_add_permission(request)
+
+    def has_change_permission(self, request, obj=None) -> bool:
+        return not access_installed() and super().has_change_permission(request, obj)
 
 
 class AddressInline(admin.TabularInline):
