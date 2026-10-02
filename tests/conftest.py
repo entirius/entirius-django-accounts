@@ -2,6 +2,8 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+import secrets
+
 import pytest
 from allauth.account.models import EmailAddress
 from django.contrib.auth import get_user_model
@@ -191,3 +193,21 @@ def wishlist_with_products(customer, channel):
     WishlistProduct.objects.create(wishlist=wl, product=pr1)
     WishlistProduct.objects.create(wishlist=wl, product=pr2)
     return customer
+
+
+@pytest.fixture
+def make_api_key(db):
+    """Create an X-API-ADMIN-KEY the module accepts today and return its raw value.
+
+    accounts has one key kind (``APIAdminKey``, customer erase), so ``scope`` is accepted and ignored. The key
+    contract tests go through this helper only, so moving the check onto another key store changes this function,
+    never the assertions. Values are random and never printed.
+    """
+    from django_accounts.models import APIAdminKey
+
+    def make_api_key(channel=None, scope: str | None = None) -> str:
+        raw = secrets.token_hex(32)
+        APIAdminKey.objects.create(channel=channel, key=raw)
+        return raw
+
+    return make_api_key
