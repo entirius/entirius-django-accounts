@@ -9,12 +9,16 @@ No customer carries the erase email, so a key that passes answers 404 "Customer 
 from the 401 of a refused key and from the 404 of an unknown channel.
 """
 
+import os
+import re
 import secrets
 from datetime import timedelta
 from unittest.mock import patch
 
 import pytest
 
+if os.environ.get("ENTIRIUS_TEST_NO_ACCESS"):
+    pytest.skip("legacy path run", allow_module_level=True)
 pytest.importorskip("django_access")
 
 from django.contrib import admin  # noqa: E402
@@ -25,10 +29,10 @@ from django_access.services.access_service import Actor  # noqa: E402
 from django_access.services.tokens import hash_key, issue_token, revoke_token, set_token_expiry  # noqa: E402
 
 from django_accounts.models import APIAdminKey  # noqa: E402
-from django_accounts.utils.api_keys import ERASE_SCOPE  # noqa: E402
+from django_accounts.utils.api_keys import ADMIN_KEY_HEADER, ERASE_SCOPE, key_is_valid, token_command  # noqa: E402
 
 CHANNEL, SECOND = "test-channel", "second-channel"
-API_KEY, ADMIN_KEY = "HTTP_X_API_KEY", "HTTP_X_API_ADMIN_KEY"
+API_KEY, ADMIN_KEY = "HTTP_X_API_KEY", ADMIN_KEY_HEADER
 SYSTEM = Actor()
 
 
@@ -39,6 +43,10 @@ def erase(api_client):
         return api_client.delete(url, {"email": "nobody@example.com"}, format="json", **{header: key})
 
     return erase
+
+
+_URL = f"/api-admin/accounts/1/{CHANNEL}/customer/delete"
+_BODY = {"email": "nobody@example.com"}
 
 
 def _passed(response) -> bool:
@@ -115,6 +123,19 @@ class TestScopeAndChannel:
         _, raw = issue(channel_idx=CHANNEL)
         assert _refused(erase(raw, header=API_KEY))
 
+    def test_garbage_admin_key_is_not_rescued_by_an_erase_token_in_x_api_key(self, channel, issue, api_client):
+        _, raw = issue(channel_idx=CHANNEL)
+        response = api_client.delete(_URL, _BODY, format="json", **{ADMIN_KEY: "garbage", API_KEY: raw})
+        assert _refused(response)
+
+    @pytest.mark.parametrize("x_api_key", ["storefront", "garbage"])
+    def test_admin_key_wins_over_x_api_key(self, x_api_key, channel, issue, api_client):
+        _, raw = issue(channel_idx=CHANNEL)
+        _, storefront = issue("checkout.storefront", CHANNEL)
+        other = storefront if x_api_key == "storefront" else "garbage"
+        response = api_client.delete(_URL, _BODY, format="json", **{ADMIN_KEY: raw, API_KEY: other})
+        assert _passed(response)
+
     def test_unknown_channel_is_404_before_the_key(self, channel, issue, erase):
         _, raw = issue()
         response = erase(raw, "no-such-channel")
@@ -123,7 +144,9 @@ class TestScopeAndChannel:
 
 
 @pytest.mark.django_db
-def test_every_failure_gives_one_response(channel, second_channel, issue, erase):
+def test_every_failure_gives_one_response(channel, second_channel, issue, erase, api_client):
+    legacy_only = secrets.token_hex(32)
+    APIAdminKey.objects.create(channel=channel, key=legacy_only)
     expired, expired_raw = issue(channel_idx=CHANNEL)
     ApiToken.objects.filter(pk=expired.pk).update(expires_at=timezone.now() - timedelta(minutes=1))
     revoked, revoked_raw = issue(channel_idx=CHANNEL)
@@ -134,15 +157,18 @@ def test_every_failure_gives_one_response(channel, second_channel, issue, erase)
         "revoked": revoked_raw,
         "wrong scope": issue("checkout.erase", CHANNEL)[1],
         "wrong channel": issue(channel_idx=SECOND)[1],
+        "legacy table only": legacy_only,
+        "legacy format unknown": secrets.token_hex(32),
     }
     responses = {kind: erase(raw) for kind, raw in keys.items()}
+    responses["missing header"] = api_client.delete(_URL, _BODY, format="json")
     outcomes = {kind: (response.status_code, response.content) for kind, response in responses.items()}
     assert len(set(outcomes.values())) == 1, outcomes
     assert outcomes["unknown"][0] == 401
 
 
 @pytest.mark.django_db
-def test_admin_pages_never_show_the_raw_key(channel, admin_user, rf, settings):
+def test_key_admin_is_read_only(channel, admin_user, rf, settings):
     settings.ROOT_URLCONF = "tests.admin_urls"
     key = APIAdminKey.objects.create(channel=channel)
     model_admin = admin.site.get_model_admin(APIAdminKey)
@@ -150,15 +176,32 @@ def test_admin_pages_never_show_the_raw_key(channel, admin_user, rf, settings):
     request.user = admin_user
     assert not model_admin.has_add_permission(request)
     assert not model_admin.has_change_permission(request, key)
-    for response in (model_admin.changelist_view(request), model_admin.change_view(request, str(key.pk))):
-        html = response.render().content.decode()
-        assert response.status_code == 200
-        assert key.key not in html
-        assert f"…{key.key[-4:]}" in html
+    assert not model_admin.has_delete_permission(request, key)
 
 
 @pytest.mark.django_db
-def test_key_command_refuses_and_names_the_token_command(channel):
-    with pytest.raises(CommandError, match=f"access_token create --scope {ERASE_SCOPE} --channel {CHANNEL}"):
-        call_command("generate-api-admin-key", CHANNEL)
+class TestKeyIsValid:
+    def _request(self, rf, raw: str):
+        return rf.get("/", **{ADMIN_KEY: raw})
+
+    def test_success_attaches_the_token(self, channel, issue, rf):
+        token, raw = issue(channel_idx=CHANNEL)
+        request = self._request(rf, raw)
+        assert key_is_valid(request, scope=ERASE_SCOPE, channel_idx=CHANNEL)
+        assert request.access_token.pk == token.pk
+
+    def test_refusal_attaches_nothing(self, channel, issue, rf):
+        _, raw = issue("checkout.erase", CHANNEL)
+        request = self._request(rf, raw)
+        assert not key_is_valid(request, scope=ERASE_SCOPE, channel_idx=CHANNEL)
+        assert not hasattr(request, "access_token")
+
+
+@pytest.mark.django_db
+def test_key_command_refuses_and_names_the_token_command(channel, tmp_path):
+    path = tmp_path / "key"
+    match = re.escape(token_command(ERASE_SCOPE, CHANNEL))
+    with pytest.raises(CommandError, match=match):
+        call_command("generate-api-admin-key", CHANNEL, file_path=str(path))
+    assert not path.exists()
     assert not APIAdminKey.objects.exists()

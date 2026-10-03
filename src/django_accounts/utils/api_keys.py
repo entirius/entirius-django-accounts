@@ -15,7 +15,7 @@ from django.apps import apps
 from django_accounts.models import APIAdminKey
 
 ERASE_SCOPE = "accounts.erase"
-_HEADER = "HTTP_X_API_ADMIN_KEY"
+ADMIN_KEY_HEADER = "HTTP_X_API_ADMIN_KEY"
 
 
 def access_installed() -> bool:
@@ -24,29 +24,31 @@ def access_installed() -> bool:
 
 def mask_key(key: str) -> str:
     """What an admin page shows of a key: its last four characters."""
-    return f"…{key[-4:]}"
+    return "…" if len(key) <= 4 else f"…{key[-4:]}"
 
 
 def token_command(scope: str, channel_idx: str) -> str:
     """What replaces the legacy key command when access is installed."""
-    return f"manage.py access_token create --scope {scope} --channel {channel_idx} --application <name>"
+    return (
+        f"manage.py access_token create --scope {scope} --channel {channel_idx} --expires-days <n> --application <name>"
+    )
 
 
 def key_is_valid(request, *, scope: str, channel_idx: str | None) -> bool:
     """True when X-API-ADMIN-KEY carries a key for ``scope`` on ``channel_idx``."""
-    key = request.META.get(_HEADER)
+    key = request.META.get(ADMIN_KEY_HEADER)
     if not key:
         return False
     if access_installed():
         return _token_is_valid(request, key, scope, channel_idx)
-    return APIAdminKey.objects.filter(key=key, channel__idx=channel_idx).exists()
+    return APIAdminKey.objects.filter(key=key, channel=request.channel).exists()
 
 
 def _token_is_valid(request, key: str, scope: str, channel_idx: str | None) -> bool:
     """``verify_api_key`` sees only X-API-ADMIN-KEY: an X-API-KEY header never stands in for it."""
     from django_access.services.tokens import verify_api_key
 
-    token = verify_api_key(SimpleNamespace(META={_HEADER: key}), scope, channel_idx)
+    token = verify_api_key(SimpleNamespace(META={ADMIN_KEY_HEADER: key}), scope, channel_idx)
     if token is not None:
         request.access_token = token
     return token is not None

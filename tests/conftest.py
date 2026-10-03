@@ -145,6 +145,13 @@ def admin_client(admin_user):
 
 
 @pytest.fixture
+def admin_client_session(admin_user, client):
+    """Django test client logged in as the superuser (admin site pages)."""
+    client.force_login(admin_user)
+    return client
+
+
+@pytest.fixture
 def regular_client(user):
     """API client authenticated as non-admin user."""
     client = APIClient()

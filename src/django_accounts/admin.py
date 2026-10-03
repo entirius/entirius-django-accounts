@@ -39,6 +39,17 @@ class APIAdminKeyAdmin(admin.ModelAdmin):
     def has_change_permission(self, request, obj=None) -> bool:
         return not access_installed() and super().has_change_permission(request, obj)
 
+    def has_delete_permission(self, request, obj=None) -> bool:
+        return not access_installed() and super().has_delete_permission(request, obj)
+
+    def save_model(self, request, obj, form, change) -> None:
+        super().save_model(request, obj, form, change)
+        if not change:
+            messages.warning(
+                request,
+                f"Key {obj.key} is shown only now. Prefer `manage.py generate-api-admin-key <channel_idx>`.",
+            )
+
 
 class AddressInline(admin.TabularInline):
     model = Address

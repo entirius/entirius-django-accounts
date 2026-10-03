@@ -12,6 +12,7 @@ wishlist, social login (Google/Facebook), and CSV import/export.
 | `make check` | lint + format-check (ruff) |
 | `make fix` | auto-fix lint + format |
 | `make test` | test suite (pytest + pytest-django) |
+| `make test-legacy` | test suite without django_access (legacy key path) |
 
 ## Conventions
 
