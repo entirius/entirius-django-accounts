@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Access: the module declares its own access areas on its AppConfig and its admin views (copied from the
+  entirius-django-access defaults; behaviour unchanged).
 - Keys verified by django-access when installed: the X-API-ADMIN-KEY erase route checks access tokens
   through `verify_api_key` (scope `accounts.erase`), never the legacy table. Without django-access
   nothing changes. `generate-api-admin-key` then refuses and names `access_token create`; the key admin
