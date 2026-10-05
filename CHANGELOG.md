@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- `customer/signup/` no longer echoes the plaintext password in its response (the rest of the request
+  echo, `uid` and `confirmation_key` are unchanged).
+
 ## 5.0.1 — 2026-07-13
 
 - Fix broken format string in the password validator help text.
