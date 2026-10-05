@@ -10,6 +10,11 @@
   becomes read-only.
 - Without django-access the key admin shows a new key once on creation; with it, delete is blocked too.
 - The key admin shows only the last four characters of a key.
+- `customer/tokens/` (the CMS staff login) runs django-access' failed-login guard when installed: blocked per
+  username + address and per address before the password is checked (429 with `Retry-After`, the counters and
+  `AUTH_TOKEN_*` settings of the service's `api/token/`), a success clears the per-user counter. Without
+  django-access nothing changes.
+- The key admin's creation message masks the new key (a Django message is stored in a cookie).
 
 ## 5.0.1 — 2026-07-13
 
