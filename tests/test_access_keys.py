@@ -22,6 +22,8 @@ if os.environ.get("ENTIRIUS_TEST_NO_ACCESS"):
 pytest.importorskip("django_access")
 
 from django.contrib import admin  # noqa: E402
+from django.contrib.messages.storage.fallback import FallbackStorage  # noqa: E402
+from django.core.cache import cache  # noqa: E402
 from django.core.management import CommandError, call_command  # noqa: E402
 from django.utils import timezone  # noqa: E402
 from django_access.models import ApiToken, Application  # noqa: E402
@@ -180,6 +182,20 @@ def test_key_admin_is_read_only(channel, admin_user, rf, settings):
 
 
 @pytest.mark.django_db
+def test_key_admin_message_masks_the_key(channel, admin_user, rf, settings):
+    """A Django message lives in a cookie: the full key must never reach it."""
+    settings.ROOT_URLCONF = "tests.admin_urls"
+    request = rf.post("/")
+    request.user, request.session = admin_user, {}
+    request._messages = FallbackStorage(request)
+    key = APIAdminKey(channel=channel)
+    admin.site.get_model_admin(APIAdminKey).save_model(request, key, form=None, change=False)
+    (message,) = [str(m) for m in request._messages]
+    assert key.key not in message
+    assert key.key[-4:] in message
+
+
+@pytest.mark.django_db
 class TestKeyIsValid:
     def _request(self, rf, raw: str):
         return rf.get("/", **{ADMIN_KEY: raw})
@@ -205,3 +221,60 @@ def test_key_command_refuses_and_names_the_token_command(channel, tmp_path):
         call_command("generate-api-admin-key", CHANNEL, file_path=str(path))
     assert not path.exists()
     assert not APIAdminKey.objects.exists()
+
+
+# Staff login (customer/tokens/) behind access' failed-login guard — the route the CMS logs staff in through.
+
+PASSWORD = "Test1234!"
+_LOGIN_URL = f"/api/accounts/1/{CHANNEL}/customer/tokens/"
+
+
+@pytest.fixture
+def login(customer, api_client, settings):
+    """Small limits (3 per user + address, 5 per address); the locmem cache starts empty."""
+    settings.AUTH_TOKEN_MAX_FAILURES_PER_USER_IP = 3
+    settings.AUTH_TOKEN_MAX_FAILURES_PER_IP = 5
+    settings.AUTH_TOKEN_FAILURE_WINDOW_S = 600
+    cache.clear()
+
+    def login(password: str, email: str = "testuser@example.com", addr: str = "192.0.2.10"):
+        body = {"email": email, "password": password}
+        return api_client.post(_LOGIN_URL, body, format="json", REMOTE_ADDR=addr)
+
+    return login
+
+
+def _codes(login, n: int, **kwargs) -> list[int]:
+    return [login("wrong", **kwargs).status_code for _ in range(n)]
+
+
+@pytest.mark.django_db
+class TestStaffLoginGuard:
+    def test_wrong_passwords_block_the_user_on_that_address(self, login):
+        assert _codes(login, 3) == [403] * 3
+        response = login(PASSWORD)
+        assert response.status_code == 429
+        assert response["Retry-After"] == "600"
+        assert response.json()["meta"]["message"] == "throttled"
+        assert login(PASSWORD, addr="192.0.2.99").status_code == 200
+
+    def test_another_user_follows_the_per_address_limit(self, login):
+        assert _codes(login, 3, email="ghost@example.com") == [403] * 3
+        assert _codes(login, 2, email="other@example.com") == [403] * 2
+        assert login(PASSWORD).status_code == 429
+        assert login(PASSWORD, addr="192.0.2.99").status_code == 200
+
+    def test_success_clears_the_per_user_counter(self, login):
+        assert _codes(login, 2) == [403] * 2
+        assert login(PASSWORD).status_code == 200
+        assert _codes(login, 2) == [403] * 2
+        assert login(PASSWORD).status_code == 200
+
+    def test_padded_email_hits_the_same_counter(self, login):
+        assert _codes(login, 3, email=" testuser@example.com\t") == [403] * 3
+        assert login(PASSWORD).status_code == 429
+
+    def test_without_access_failures_are_never_counted(self, login):
+        with patch("django_accounts.views.api.token.access_installed", return_value=False):
+            assert _codes(login, 6) == [403] * 6
+            assert login(PASSWORD).status_code == 200

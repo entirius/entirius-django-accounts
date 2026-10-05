@@ -82,7 +82,7 @@ Function-based views (v1 style: marshmallow DTO validation). URL prefix configur
 
 ```
 {PUBLIC_BASE_URL}/accounts/<version>/<channel_idx>/
-├── customer/tokens/                POST (create)          -- JWT login
+├── customer/tokens/                POST (create)          -- JWT login (staff too: the CMS); failed logins limited with access
 ├── customer/tokens/refresh/        POST                   -- refresh access token
 ├── customer/tokens/blacklist/      POST (auth)            -- logout / invalidate refresh
 ├── customer/tokens/validate/       POST                   -- validate access token
@@ -258,6 +258,9 @@ make test
 
 ## Gotchas
 
+- `customer/tokens/` is the CMS staff login: with `django_access` installed it runs access' failed-login guard
+  (`django_access.services.login_guard`, the counters of the service's `api/token/`; settings
+  `AUTH_TOKEN_*`) — 429 + `Retry-After` before the password check; without access no limit
 - `PRIVATE_DIR` and `MIGRATION_0023_MECHANISM` raise `EnvironmentError` at import if unset — set both before starting Django
 - `T9N_DEFAULT_LANG` defaults to `"pl"` not `"en"` — affects `ProductRepresentation.name` and `name_lang()` fallback
 - `Customer.email` is a `@property` querying allauth `EmailAddress` — always access via `customer.email.email`, not a plain field
