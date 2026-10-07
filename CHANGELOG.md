@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Fix `PATCH customer/<uid>/profile/` answering 200 without saving: `firstname` and
+  `lastname` now land on the user's `first_name` / `last_name`, `sex` on the customer.
+
 ## 5.0.1 — 2026-07-13
 
 - Fix broken format string in the password validator help text.
