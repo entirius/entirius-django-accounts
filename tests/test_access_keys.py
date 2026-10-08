@@ -22,6 +22,7 @@ if os.environ.get("ENTIRIUS_TEST_NO_ACCESS"):
 pytest.importorskip("django_access")
 
 from django.contrib import admin  # noqa: E402
+from django.contrib.auth import get_user_model  # noqa: E402
 from django.contrib.messages.storage.fallback import FallbackStorage  # noqa: E402
 from django.core.cache import cache  # noqa: E402
 from django.core.management import CommandError, call_command  # noqa: E402
@@ -30,7 +31,7 @@ from django_access.models import ApiToken, Application  # noqa: E402
 from django_access.services.access_service import Actor  # noqa: E402
 from django_access.services.tokens import hash_key, issue_token, revoke_token, set_token_expiry  # noqa: E402
 
-from django_accounts.models import APIAdminKey  # noqa: E402
+from django_accounts.models import APIAdminKey, Customer  # noqa: E402
 from django_accounts.utils.api_keys import ADMIN_KEY_HEADER, ERASE_SCOPE, key_is_valid, token_command  # noqa: E402
 
 CHANNEL, SECOND = "test-channel", "second-channel"
@@ -221,6 +222,57 @@ def test_key_command_refuses_and_names_the_token_command(channel, tmp_path):
         call_command("generate-api-admin-key", CHANNEL, file_path=str(path))
     assert not path.exists()
     assert not APIAdminKey.objects.exists()
+
+
+# A pinned token erases only in its channel (D3); an unpinned one in every channel.
+
+ERASED = "erased@example.com"
+
+
+def _customer(channel, suffix: str) -> Customer:
+    """One customer per channel can share an e-mail: the username differs, the e-mail is the same."""
+    user = get_user_model().objects.create_user(username=f"{suffix}-{ERASED}", email=ERASED)
+    return Customer.objects.create(user=user, source_channel=channel)
+
+
+def _erase_email(api_client, raw: str, channel_idx: str = CHANNEL):
+    url = f"/api-admin/accounts/1/{channel_idx}/customer/delete"
+    return api_client.delete(url, {"email": ERASED}, format="json", **{ADMIN_KEY: raw})
+
+
+def _kept(*customers: Customer) -> set[int]:
+    return set(Customer.objects.filter(pk__in=[c.pk for c in customers]).values_list("pk", flat=True))
+
+
+@pytest.mark.django_db
+class TestPinnedErase:
+    def test_pinned_token_erases_only_its_channel(self, channel, second_channel, issue, api_client):
+        own, other = _customer(channel, "a"), _customer(second_channel, "b")
+        response = _erase_email(api_client, issue(channel_idx=CHANNEL)[1])
+        assert response.status_code == 200
+        assert response.json()["data"]["uid_ok"] == [str(own.uid)]
+        assert _kept(own, other) == {other.pk}
+
+    def test_email_only_in_another_channel_is_not_found(self, channel, second_channel, issue, api_client):
+        other = _customer(second_channel, "b")
+        response = _erase_email(api_client, issue(channel_idx=CHANNEL)[1])
+        assert _passed(response)
+        assert _kept(other) == {other.pk}
+
+    def test_not_found_matches_an_unknown_email(self, channel, second_channel, issue, api_client, erase):
+        _customer(second_channel, "b")
+        raw = issue(channel_idx=CHANNEL)[1]
+        assert _erase_email(api_client, raw).content == erase(raw).content
+
+    def test_customer_without_source_channel_is_kept(self, channel, issue, api_client):
+        orphan = _customer(None, "x")
+        assert _passed(_erase_email(api_client, issue(channel_idx=CHANNEL)[1]))
+        assert _kept(orphan) == {orphan.pk}
+
+    def test_unpinned_token_erases_every_channel(self, channel, second_channel, issue, api_client):
+        own, other, orphan = _customer(channel, "a"), _customer(second_channel, "b"), _customer(None, "x")
+        assert _erase_email(api_client, issue()[1]).status_code == 200
+        assert _kept(own, other, orphan) == set()
 
 
 # Staff login (customer/tokens/) behind access' failed-login guard — the route the CMS logs staff in through.
