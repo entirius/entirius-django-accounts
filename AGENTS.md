@@ -22,6 +22,9 @@ wishlist, social login (Google/Facebook), and CSV import/export.
 - Git flow: `master` (production) + `develop` (integration); changes land via PR; semver tag on `master`.
 - Never rename the package / Django app_label / DB table prefix `django_accounts` — it is a schema contract.
 - Migrations are part of the public contract — never edit an already released migration.
+- Access: areas and token scopes live on the AppConfig (`access_areas`, `access_token_scopes`,
+  `access_route_rules`), every admin view carries `access_area`; a new admin route without one fails
+  `tests/test_access_ownership.py`.
 - Default: do not commit — git is the user's call.
 
 ## Architecture
@@ -79,7 +82,7 @@ Function-based views (v1 style: marshmallow DTO validation). URL prefix configur
 
 ```
 {PUBLIC_BASE_URL}/accounts/<version>/<channel_idx>/
-├── customer/tokens/                POST (create)          -- JWT login
+├── customer/tokens/                POST (create)          -- JWT login (staff too: the CMS); failed logins limited with access
 ├── customer/tokens/refresh/        POST                   -- refresh access token
 ├── customer/tokens/blacklist/      POST (auth)            -- logout / invalidate refresh
 ├── customer/tokens/validate/       POST                   -- validate access token
@@ -108,7 +111,8 @@ Function-based views (v1 style: marshmallow DTO validation). URL prefix configur
 - `@authenticate` + `@require_authentication` — simplejwt Bearer token
 - `@admin_view` — X-API-ADMIN-KEY authentication (admin endpoints) through `utils/api_keys.py` `key_is_valid`: with
   `django_access` installed an access token of scope `accounts.erase` (`verify_api_key`, the `APIAdminKey` table is never
-  read), else the `APIAdminKey` row (soft dependency — never in `pyproject.toml`)
+  read), else the `APIAdminKey` row (soft dependency — never in `pyproject.toml`); a pinned token erases only
+  customers of its channel (`erase_channel`, `Customer.source_channel`), an unpinned one in every channel
 - `@channel_view` — resolves `Channel` from URL `channel_idx` into `kwargs["channel"]`
 
 ### API v2 Admin (Read-Only)
@@ -255,6 +259,12 @@ make test
 
 ## Gotchas
 
+- `customer/tokens/` is the CMS staff login: with `django_access` installed it runs access' failed-login guard
+  (`django_access.services.login_guard`, the counters of the service's `api/token/`; settings
+  `AUTH_TOKEN_*`) — 429 + `Retry-After` before the password check; without access no limit
+- With `django_access` installed, `receivers.create_staff_customer` (connected in `AccountsConfig.ready()`) gives an
+  account from `staff_user_created` its `Customer` + verified `EmailAddress`; it runs in the access transaction — a
+  raise rolls the account back
 - `PRIVATE_DIR` and `MIGRATION_0023_MECHANISM` raise `EnvironmentError` at import if unset — set both before starting Django
 - `T9N_DEFAULT_LANG` defaults to `"pl"` not `"en"` — affects `ProductRepresentation.name` and `name_lang()` fallback
 - `Customer.email` is a `@property` querying allauth `EmailAddress` — always access via `customer.email.email`, not a plain field

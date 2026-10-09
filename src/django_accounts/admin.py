@@ -47,7 +47,8 @@ class APIAdminKeyAdmin(admin.ModelAdmin):
         if not change:
             messages.warning(
                 request,
-                f"Key {obj.key} is shown only now. Prefer `manage.py generate-api-admin-key <channel_idx>`.",
+                f"Key {mask_key(obj.key)} created; the full key is never shown here. "
+                "Prefer `manage.py generate-api-admin-key <channel_idx>`, which prints it.",
             )
 
 

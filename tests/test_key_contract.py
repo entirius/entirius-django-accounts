@@ -128,12 +128,13 @@ class TestLegacyKeyPath:
         assert model_admin.has_change_permission(request, key)
         assert model_admin.has_delete_permission(request, key)
 
-    def test_admin_add_shows_the_raw_key_once(self, channel, admin_client_session, settings):
+    def test_admin_add_shows_only_the_masked_key(self, channel, admin_client_session, settings):
         settings.ROOT_URLCONF = "tests.admin_urls"
         response = admin_client_session.post(
             "/admin/django_accounts/apiadminkey/add/", {"channel": channel.pk}, follow=True
         )
         key = APIAdminKey.objects.latest("pk").key
-        assert key in response.content.decode()
+        assert key not in response.content.decode()
+        assert mask_key(key) in response.content.decode()
         listing = admin_client_session.get("/admin/django_accounts/apiadminkey/")
         assert key not in listing.content.decode()

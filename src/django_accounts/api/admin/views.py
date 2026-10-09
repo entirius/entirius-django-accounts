@@ -53,6 +53,7 @@ def _parse_bool(value: str | None) -> bool | None:
 class CustomerViewSet(viewsets.ViewSet):
     authentication_classes = _ADMIN_AUTH
     permission_classes = _ADMIN_PERMS
+    access_area = "accounts.customers"
     pagination_class = AdminPageNumberPagination
 
     def list(self, request: Request, **kwargs) -> Response:
@@ -93,6 +94,7 @@ class CustomerViewSet(viewsets.ViewSet):
 class GroupViewSet(viewsets.ViewSet):
     authentication_classes = _ADMIN_AUTH
     permission_classes = _ADMIN_PERMS
+    access_area = "accounts.customers"
     pagination_class = AdminPageNumberPagination
 
     def list(self, request: Request, **kwargs) -> Response:
@@ -118,6 +120,7 @@ class GroupViewSet(viewsets.ViewSet):
 class ChannelViewSet(viewsets.ViewSet):
     authentication_classes = _ADMIN_AUTH
     permission_classes = _ADMIN_PERMS
+    access_area = "accounts.customers"
     pagination_class = AdminPageNumberPagination
 
     def list(self, request: Request, **kwargs) -> Response:
