@@ -35,6 +35,11 @@ Function-based views (v1 style: marshmallow DTO validation). URL prefix configur
 └── customer/delete                 DELETE (@admin_view)   -- admin delete customer by email
 ```
 
+With `ACCOUNTS_NATIVE_AUTH_ENABLED = False` ([configuration](configuration.md#external-sso-only-deployments)),
+`customer/tokens/` (create), `customer/signup/`, `customer/signup/<uid>/`, `customer/password/reset/`,
+`customer/password/reset/<key>/` and `customer/password/change/` answer 403 with `meta.status`
+`native_auth_disabled`; the other endpoints are unchanged.
+
 **Auth mechanisms (v1):**
 - `@authenticate` + `@require_authentication` — simplejwt Bearer token
 - `@admin_view` — X-API-ADMIN-KEY authentication (admin endpoints) through `utils/api_keys.py` `key_is_valid`: with

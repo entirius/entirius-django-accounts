@@ -325,14 +325,30 @@ Three settings raise `OSError` at import time if unset: `JWT_SECRET`, `PRIVATE_D
 ## External-SSO-only deployments
 
 `ACCOUNTS_NATIVE_AUTH_ENABLED` defaults to `True`, preserving existing behavior.
-Set it to `False` to disable native password login, signup and signup confirmation,
-password reset and reset confirmation, and password changes. These endpoints stay
-registered and return HTTP 403 with `meta.status` `native_auth_disabled`, before
-processing credentials or sending email.
+Set it to `False` to close this module's credential endpoints: `customer/tokens/`
+(password login), signup and signup confirmation, password reset and reset
+confirmation, and password change. These endpoints stay registered and return
+HTTP 403 with `meta.status` `native_auth_disabled`, before processing credentials,
+counting throttles or sending email.
 
 This setting does not disable external/social SSO, staff provisioning, bearer-token
 customer/profile endpoints, or JWT refresh, validation and blacklisting. An SSO
 session can therefore continue refreshing and logging out normally.
+
+**Staff are affected too.** `customer/tokens/` is also the admin CMS login, and CMS
+staff reset and change their passwords through the same views. With the flag off, the
+CMS password form returns 403 for everyone, so the CMS needs SSO login
+(`VUE_APP_SSO_API_BASE`, see `docs/sso-login.md` in entirius-pwa-cms) before you
+switch it off.
+
+**Scope.** The flag covers the accounts endpoints only. The service's own `api/token/`
+(SimpleJWT pair view) and the Django admin login still accept passwords, and a JWT from
+`api/token/` works on the accounts endpoints. Give users who must never sign in with a
+password an unusable one (`user.set_unusable_password()`).
+
+**Existing sessions.** Turning the flag off does not end sessions that started with a
+password: their refresh tokens keep working until `REFRESH_TOKEN_LIFETIME` (see
+[JWT Settings](#jwt-settings)).
 
 The reset/signup redirect-URL checks do not require storefront URLs while these
 native flows are disabled. Do not use placeholder URLs to configure an SSO-only
