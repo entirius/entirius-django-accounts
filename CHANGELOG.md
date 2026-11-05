@@ -1,5 +1,17 @@
 # Changelog
 
+## 6.1.0 — 2026-11-05
+
+### Added
+
+- `ACCOUNTS_NATIVE_AUTH_ENABLED` (default `True`, no change for existing installations). Set to `False` for
+  SSO-only deployments: `customer/tokens/`, `customer/signup/`, `customer/signup/<uid>/`, `customer/password/reset/`,
+  `customer/password/reset/<key>/` and `customer/password/change/` answer 403 `native_auth_disabled` before any
+  processing, throttle or mail. This includes staff (the CMS password login and reset). It does not close refresh,
+  validate, blacklist, profile, social login, the service's `api/token/` or the Django admin login, and it does not
+  end sessions already issued (refresh tokens live until `REFRESH_TOKEN_LIFETIME`). The `accounts.redirect_urls`
+  check is skipped while the flag is off. See `docs/configuration.md`.
+
 ## 6.0.2 — 2026-10-29
 
 - Security: login, signup and password reset are throttled. Before, only `customer/tokens/` with `django_access`
